@@ -1,6 +1,6 @@
 ---
 name: read-parent-spec
-description: Use before implementing any ticket/issue in this repo that references a parent spec issue (a "Blocked by" link, an explicit issue number, or a mention of CONTEXT.md/ADRs). Also use whenever asked to "implement ticket #N" or "pick up issue #N" directly — tickets in this repo are intentionally short and defer conventions to their parent spec rather than restating them.
+description: Use before implementing any ticket/issue in this repo that references a parent spec issue (a "Blocked by" link, an explicit issue number, or a mention of CONTEXT.md/ADRs). Tickets in this repo are intentionally short and defer conventions to their parent spec rather than restating them.
 ---
 
 # Read the parent spec before implementing
@@ -28,8 +28,3 @@ every ticket.
 - Every test file you create matches that framework and location — verified
   by actually running the command the spec names (e.g. `python -m unittest`),
   not by assuming.
-
-## When this does not apply
-
-A ticket with no parent spec issue — a standalone bugfix or chore with
-nothing to inherit — does not need this lookup.
