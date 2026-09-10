@@ -26,13 +26,13 @@ import math
 import os
 import sys
 
+from profil import Profil, charger, sauvegarder
 from quantum_entropy import get_quantum_bytes
 
 # --------------------------------------------------------------------------- #
 # Configuration
 # --------------------------------------------------------------------------- #
 
-SOLDE_INITIAL = 1000.0
 EXPOSANT_PAIEMENT = 1.0  # 1.0 = équitable ; > 1.0 = avantage maison
 
 TEINTES_NOMMEES = {
@@ -216,7 +216,13 @@ def tirer_couleur() -> tuple[tuple[int, int, int], str, bool]:
     return (r, g, b), res.source, res.quantum
 
 
-def jouer_manche(solde: float, exposant: float) -> float:
+def jouer_manche(profil: Profil, exposant: float) -> None:
+    """Joue un round et reporte le résultat sur ``profil.bankroll``.
+
+    La bankroll n'est modifiée qu'une fois le round entièrement résolu : une
+    interruption en cours de saisie laisse le profil intact.
+    """
+    solde = profil.bankroll
     print("\n" + "=" * 60)
     print(f"  Solde : {texte_couleur(f'{solde:.2f} €', 120, 220, 120)}")
     print("=" * 60)
@@ -292,7 +298,7 @@ def jouer_manche(solde: float, exposant: float) -> float:
         verdict = "ÉQUILIBRE  0.00 €"
     print(f"  Gain brut : {montant:.2f} €   →   {verdict}")
 
-    return solde + net
+    profil.bankroll = solde + net
 
 
 def boucle_jeu(exposant: float) -> None:
@@ -309,13 +315,15 @@ def boucle_jeu(exposant: float) -> None:
             )
         )
 
-    solde = SOLDE_INITIAL
+    profil = charger()
+    bankroll_depart = profil.bankroll
     manche = 0
     try:
-        while solde > 0:
-            solde = jouer_manche(solde, exposant)
+        while profil.bankroll > 0:
+            jouer_manche(profil, exposant)
+            sauvegarder(profil)
             manche += 1
-            if solde <= 0:
+            if profil.bankroll <= 0:
                 print(texte_couleur("\n  Solde épuisé. Fin de partie.", 230, 110, 110))
                 break
             if demander("\n  Rejouer ? [O/n] ").strip().lower() in ("n", "non"):
@@ -323,13 +331,13 @@ def boucle_jeu(exposant: float) -> None:
     except KeyboardInterrupt:
         print("\n  Partie interrompue.")
 
-    net = solde - SOLDE_INITIAL
+    net = profil.bankroll - bankroll_depart
     couleur = (120, 220, 120) if net >= 0 else (230, 110, 110)
     print("\n" + "=" * 60)
     print(f"  {manche} manche(s) jouée(s)")
     print(
-        f"  Solde final : {solde:.2f} €   "
-        f"({texte_couleur(f'{net:+.2f} €', *couleur)} vs départ)"
+        f"  Solde final : {profil.bankroll:.2f} €   "
+        f"({texte_couleur(f'{net:+.2f} €', *couleur)} vs début de session)"
     )
     print("=" * 60 + "\n")
 
