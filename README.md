@@ -58,6 +58,11 @@ Le jeu conserve un **profil** unique par machine : un fichier JSON qui retient
 la **bankroll** d'une session à l'autre. Vous ne repartez pas de 1000 € à
 chaque lancement, mais du solde laissé par la session précédente.
 
+Le profil garde aussi l'**historique des rounds** : une entrée par round joué
+(horodatage UTC, mise, proximité, gain brut, net, avantage maison), dans l'ordre
+de jeu. L'historique ne fait que croître — les entrées ne sont jamais modifiées
+ni supprimées (`docs/adr/0003-profile-storage.md`).
+
 Emplacement du fichier :
 
 - Linux / macOS : `~/.local/share/casino-teinte/profil.json`
@@ -93,4 +98,4 @@ Le jeu indique à chaque tirage la source réellement utilisée.
 |-----------------------|--------------------------------------------------|
 | `casino_couleur.py`   | Jeu : boucle, roue chromatique, barème, saisies  |
 | `quantum_entropy.py`  | Récupération des octets aléatoires ANU QRNG      |
-| `profil.py`           | Profil persistant : chemin, chargement, écriture |
+| `profil.py`           | Profil persistant : chemin, chargement, écriture, historique |

@@ -17,6 +17,7 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +88,39 @@ def charger_profil(chemin: Path) -> Profil:
         re_buys=int(donnees.get("re_buys", 0)),
         history=list(donnees.get("history", [])),
         schema_version=int(donnees.get("schema_version", SCHEMA_VERSION)),
+    )
+
+
+def enregistrer_manche(
+    profil: Profil,
+    *,
+    mise: float,
+    proximity: float,
+    gain: float,
+    net: float,
+    house_edge: float,
+) -> None:
+    """Ajoute **une** entrée à ``profil.history`` pour le round qui vient d'être
+    joué.
+
+    L'historique est en ajout seul et non borné (ADR-0003) : les entrées déjà
+    présentes ne sont jamais modifiées ni retirées, seule une nouvelle entrée est
+    ajoutée en fin de liste, dans l'ordre de jeu. Chaque entrée capture de quoi
+    recalculer tous les agrégats à vie ; l'horodatage est l'instant courant en
+    UTC, ISO 8601 avec un « Z » final.
+
+    Ne persiste pas par elle-même : l'appelant écrit le profil (bankroll +
+    history) dans la même sauvegarde atomique via :func:`sauvegarder`.
+    """
+    profil.history.append(
+        {
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "mise": mise,
+            "proximity": proximity,
+            "gain": gain,
+            "net": net,
+            "house_edge": house_edge,
+        }
     )
 
 

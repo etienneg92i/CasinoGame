@@ -26,7 +26,13 @@ import math
 import os
 import sys
 
-from profil import Profil, charger_profil, resoudre_chemin, sauvegarder
+from profil import (
+    Profil,
+    charger_profil,
+    enregistrer_manche,
+    resoudre_chemin,
+    sauvegarder,
+)
 from quantum_entropy import get_quantum_bytes
 
 # --------------------------------------------------------------------------- #
@@ -217,10 +223,13 @@ def tirer_couleur() -> tuple[tuple[int, int, int], str, bool]:
 
 
 def jouer_manche(profil: Profil, exposant: float) -> None:
-    """Joue un round et reporte le résultat sur ``profil.bankroll``.
+    """Joue un round, reporte le résultat sur ``profil.bankroll`` et ajoute une
+    entrée à ``profil.history``.
 
-    La bankroll n'est modifiée qu'une fois le round entièrement résolu : une
-    interruption en cours de saisie laisse le profil intact.
+    Le profil n'est modifié qu'une fois le round entièrement résolu : une
+    interruption en cours de saisie laisse le profil intact. L'appelant
+    (:func:`boucle_jeu`) persiste ensuite bankroll et history dans la même
+    écriture atomique.
     """
     solde = profil.bankroll
     print("\n" + "=" * 60)
@@ -299,6 +308,14 @@ def jouer_manche(profil: Profil, exposant: float) -> None:
     print(f"  Gain brut : {montant:.2f} €   →   {verdict}")
 
     profil.bankroll = solde + net
+    enregistrer_manche(
+        profil,
+        mise=mise,
+        proximity=proximite,
+        gain=montant,
+        net=net,
+        house_edge=exposant,
+    )
 
 
 def boucle_jeu(exposant: float) -> None:

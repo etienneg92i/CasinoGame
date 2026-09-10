@@ -1,4 +1,7 @@
-"""Tests du profil persistant — ticket #2 (bankroll conservée entre sessions).
+"""Tests du profil persistant.
+
+Couvre le ticket #2 (bankroll conservée entre sessions) et le ticket #3
+(historique des rounds en ajout seul).
 
 Framework : ``unittest`` de la bibliothèque standard — le projet ne dépend
 d'aucune bibliothèque tierce (spec, issue #1, « Testing Decisions »).
@@ -139,6 +142,127 @@ class ProfilSurDisqueTest(unittest.TestCase):
     def test_sauvegarde_ne_laisse_pas_de_fichier_temporaire(self):
         profil.sauvegarder(profil.Profil(), self.chemin)
         self.assertEqual(self._residus(), [])
+
+
+class EnregistrerMancheTest(unittest.TestCase):
+    """Ticket #3 — chaque round ajoute exactement une entrée à ``history``, les
+    entrées antérieures ne sont jamais touchées, et l'entrée est persistée dans
+    la même écriture atomique que la bankroll."""
+
+    def test_un_round_ajoute_exactement_une_entree(self):
+        p = profil.Profil()
+
+        profil.enregistrer_manche(
+            p, mise=50.0, proximity=87.3, gain=76.12, net=26.12, house_edge=1.0
+        )
+
+        self.assertEqual(len(p.history), 1)
+
+    def test_chaque_appel_ajoute_une_entree_dans_l_ordre_de_jeu(self):
+        p = profil.Profil()
+
+        for mise in (10.0, 20.0, 30.0):
+            profil.enregistrer_manche(
+                p, mise=mise, proximity=50.0, gain=0.0, net=-mise, house_edge=1.0
+            )
+
+        self.assertEqual([e["mise"] for e in p.history], [10.0, 20.0, 30.0])
+
+    def test_les_entrees_anterieures_ne_sont_jamais_modifiees_ni_retirees(self):
+        ancienne = {
+            "timestamp": "2026-01-01T00:00:00Z",
+            "mise": 5.0,
+            "proximity": 12.0,
+            "gain": 0.0,
+            "net": -5.0,
+            "house_edge": 1.0,
+        }
+        p = profil.Profil(history=[dict(ancienne)])
+
+        profil.enregistrer_manche(
+            p, mise=99.0, proximity=95.0, gain=188.1, net=89.1, house_edge=1.3
+        )
+
+        self.assertEqual(p.history[0], ancienne)
+        self.assertEqual(len(p.history), 2)
+
+    def test_contenu_d_une_entree(self):
+        p = profil.Profil()
+
+        fige = mock.Mock()
+        fige.strftime.return_value = "2026-09-10T14:32:05Z"
+        with mock.patch.object(profil, "datetime") as horloge:
+            horloge.now.return_value = fige
+            profil.enregistrer_manche(
+                p, mise=50.0, proximity=87.3, gain=76.12, net=26.12, house_edge=1.0
+            )
+
+        self.assertEqual(
+            p.history[-1],
+            {
+                "timestamp": "2026-09-10T14:32:05Z",
+                "mise": 50.0,
+                "proximity": 87.3,
+                "gain": 76.12,
+                "net": 26.12,
+                "house_edge": 1.0,
+            },
+        )
+
+    def test_horodatage_est_en_utc_iso_8601_avec_un_z_final(self):
+        p = profil.Profil()
+
+        profil.enregistrer_manche(
+            p, mise=1.0, proximity=1.0, gain=0.0, net=-1.0, house_edge=1.0
+        )
+
+        horodatage = p.history[-1]["timestamp"]
+        self.assertRegex(horodatage, r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        # Analysable comme un instant UTC.
+        from datetime import datetime, timezone
+
+        lu = datetime.strptime(horodatage, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        self.assertEqual(lu.tzinfo, timezone.utc)
+
+
+class HistoriquePersisteTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.chemin = Path(tmp.name) / "profil.json"
+
+    def test_l_entree_est_persistee_dans_la_meme_ecriture_que_la_bankroll(self):
+        p = profil.charger_profil(self.chemin)
+        p.bankroll = 812.5
+        profil.enregistrer_manche(
+            p, mise=40.0, proximity=70.0, gain=56.0, net=16.0, house_edge=1.0
+        )
+
+        profil.sauvegarder(p, self.chemin)
+
+        sur_disque = json.loads(self.chemin.read_text(encoding="utf-8"))
+        self.assertEqual(sur_disque["bankroll"], 812.5)
+        self.assertEqual(len(sur_disque["history"]), 1)
+        self.assertEqual(sur_disque["history"][0]["net"], 16.0)
+
+    def test_plusieurs_rounds_puis_relecture_toutes_les_entrees_dans_l_ordre(self):
+        p = profil.charger_profil(self.chemin)
+        for i in range(1, 6):
+            profil.enregistrer_manche(
+                p,
+                mise=float(i * 10),
+                proximity=float(i * 5),
+                gain=0.0,
+                net=float(-i),
+                house_edge=1.0,
+            )
+            profil.sauvegarder(p, self.chemin)
+
+        relu = profil.charger_profil(self.chemin)
+
+        self.assertEqual([e["mise"] for e in relu.history], [10.0, 20.0, 30.0, 40.0, 50.0])
 
 
 if __name__ == "__main__":
