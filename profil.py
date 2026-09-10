@@ -4,6 +4,9 @@ Le profil conserve la bankroll et l'historique des rounds entre les sessions.
 Il est implicite (aucun nom, aucune sélection au lancement) et il n'en existe
 qu'un par machine.
 
+Les fonctions publiques restent aussi pures que possible : le chemin du fichier
+est leur seule entrée/sortie.
+
 Voir docs/adr/0001-single-implicit-profile.md (profil unique implicite) et
 docs/adr/0003-profile-storage.md (emplacement du fichier, écriture atomique).
 """
@@ -18,7 +21,11 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-BANKROLL_INITIALE = 1000.0
+
+# Bankroll d'un profil neuf, et cible d'un re-buy (ADR-0002). Défini ici plutôt
+# que dans casino_couleur.py : profil.py est le module bas niveau et ne peut pas
+# importer casino_couleur.py sans créer un cycle d'imports.
+SOLDE_INITIAL = 1000.0
 
 _NOM_APPLICATION = "casino-teinte"
 _NOM_FICHIER = "profil.json"
@@ -33,17 +40,19 @@ class Profil:
     par des unités ultérieures sans changer la forme du fichier.
     """
 
-    bankroll: float = BANKROLL_INITIALE
+    bankroll: float = SOLDE_INITIAL
     re_buys: int = 0
     history: list[dict[str, Any]] = field(default_factory=list)
     schema_version: int = SCHEMA_VERSION
 
 
-def chemin_profil() -> Path:
-    """Résout le chemin du fichier profil.
+def resoudre_chemin() -> Path:
+    """Chemin du fichier profil.
 
-    ``CASINO_PROFILE_PATH`` a la priorité si elle est définie ; sinon le
-    fichier vit dans le répertoire de données utilisateur de l'OS.
+    ``CASINO_PROFILE_PATH`` a la priorité si elle est définie ; sinon le fichier
+    vit dans le répertoire de données utilisateur de l'OS
+    (``~/.local/share/casino-teinte/`` sous Linux/macOS,
+    ``%APPDATA%\\casino-teinte\\`` sous Windows).
     """
     surcharge = os.environ.get("CASINO_PROFILE_PATH")
     if surcharge:
@@ -60,16 +69,15 @@ def _repertoire_donnees() -> Path:
     return racine / _NOM_APPLICATION
 
 
-def charger() -> Profil:
+def charger_profil(chemin: Path) -> Profil:
     """Charge le profil, ou en crée un neuf si le fichier n'existe pas encore.
 
-    La quarantaine d'un fichier corrompu ou de version inconnue est traitée
-    par une unité ultérieure (ADR-0003) ; ici une erreur de lecture ou de
-    parsing se propage.
+    La quarantaine d'un fichier corrompu ou de version inconnue est traitée par
+    une unité ultérieure (ADR-0003) ; ici une erreur de lecture ou de parsing se
+    propage.
     """
-    chemin = chemin_profil()
     try:
-        texte = chemin.read_text(encoding="utf-8")
+        texte = Path(chemin).read_text(encoding="utf-8")
     except FileNotFoundError:
         return Profil()
 
@@ -82,13 +90,14 @@ def charger() -> Profil:
     )
 
 
-def sauvegarder(profil: Profil) -> None:
+def sauvegarder(profil: Profil, chemin: Path) -> None:
     """Écrit le profil de façon atomique : fichier temporaire + ``os.replace``.
 
-    Le fichier définitif n'est jamais observé à moitié écrit ; en cas d'échec
-    le fichier temporaire est nettoyé et l'ancien profil reste intact.
+    Le fichier définitif n'est jamais observé à moitié écrit ; en cas d'échec le
+    fichier temporaire est nettoyé et l'ancien profil reste intact. Le
+    répertoire parent est créé au besoin.
     """
-    chemin = chemin_profil()
+    chemin = Path(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
 
     donnees = {

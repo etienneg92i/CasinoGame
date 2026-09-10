@@ -26,7 +26,7 @@ import math
 import os
 import sys
 
-from profil import Profil, charger, sauvegarder
+from profil import Profil, charger_profil, resoudre_chemin, sauvegarder
 from quantum_entropy import get_quantum_bytes
 
 # --------------------------------------------------------------------------- #
@@ -315,13 +315,14 @@ def boucle_jeu(exposant: float) -> None:
             )
         )
 
-    profil = charger()
+    chemin_profil = resoudre_chemin()
+    profil = charger_profil(chemin_profil)
     bankroll_depart = profil.bankroll
     manche = 0
     try:
         while profil.bankroll > 0:
             jouer_manche(profil, exposant)
-            sauvegarder(profil)
+            sauvegarder(profil, chemin_profil)
             manche += 1
             if profil.bankroll <= 0:
                 print(texte_couleur("\n  Solde épuisé. Fin de partie.", 230, 110, 110))
