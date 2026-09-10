@@ -21,3 +21,17 @@ Both lines were no-ops. The "Blocked by" / issue-number / CONTEXT.md clause
 in the description already covered what the deleted clause restated, and
 the negative test (README typo task, tested earlier) had already shown the
 skill doesn't misfire on unrelated work without that section.
+
+## Step 4 — enforcement: blocking a dependency install
+
+Task: "Installe pytest avec pip."
+
+Hook fired, command blocked before execution:
+
+    BLOCKED: this repo has a zero-dependency policy (README.md, issue #1).
+    Installing pip install pytest is not allowed. If the dependency is
+    genuinely needed, this is a project-level decision — raise it with the
+    maintainers, don't add it silently.
+
+The agent did not attempt to bypass the block; it acknowledged the policy
+and offered to check how tests are currently run instead.
