@@ -58,6 +58,14 @@ Le jeu conserve un **profil** unique par machine : un fichier JSON qui retient
 la **bankroll** d'une session à l'autre. Vous ne repartez pas de 1000 € à
 chaque lancement, mais du solde laissé par la session précédente.
 
+Si vous lancez une session avec une bankroll sous **10 €**, la banque vous
+**renfloue** jusqu'à 1000 € et compte ce re-buy dans le profil (`re_buys`). Le
+re-buy n'a lieu qu'au lancement : tomber à court en cours de session met fin à
+cette session (« Solde épuisé »), et le renflouement n'intervient qu'au
+lancement suivant. Les re-buys sont de l'argent de la banque injecté hors jeu :
+ils sont comptés à part et n'entrent pas dans le net à vie
+(`docs/adr/0002-re-buy-instead-of-bust.md`).
+
 Le profil garde aussi l'**historique des rounds** : une entrée par round joué
 (horodatage UTC, mise, proximité, gain brut, net, avantage maison), dans l'ordre
 de jeu. L'historique ne fait que croître — les entrées ne sont jamais modifiées
@@ -98,4 +106,4 @@ Le jeu indique à chaque tirage la source réellement utilisée.
 |-----------------------|--------------------------------------------------|
 | `casino_couleur.py`   | Jeu : boucle, roue chromatique, barème, saisies  |
 | `quantum_entropy.py`  | Récupération des octets aléatoires ANU QRNG      |
-| `profil.py`           | Profil persistant : chemin, chargement, écriture, historique |
+| `profil.py`           | Profil persistant : chemin, chargement, écriture, historique, re-buy |

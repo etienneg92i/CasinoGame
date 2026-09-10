@@ -28,6 +28,11 @@ SCHEMA_VERSION = 1
 # importer casino_couleur.py sans créer un cycle d'imports.
 SOLDE_INITIAL = 1000.0
 
+# En dessous de ce solde au lancement d'une session, la banque renfloue le joueur
+# jusqu'à SOLDE_INITIAL (ADR-0002). Défini ici pour la même raison que
+# SOLDE_INITIAL : appliquer_recave en a besoin et vit dans ce module.
+SEUIL_RECAVE = 10.0
+
 _NOM_APPLICATION = "casino-teinte"
 _NOM_FICHIER = "profil.json"
 
@@ -36,9 +41,9 @@ _NOM_FICHIER = "profil.json"
 class Profil:
     """État persistant d'un joueur.
 
-    Le schéma complet est posé dès maintenant même si seule ``bankroll`` est
-    exercée par le jeu à ce stade : ``re_buys`` et ``history`` sont alimentés
-    par des unités ultérieures sans changer la forme du fichier.
+    ``bankroll`` est reportée après chaque round, ``history`` reçoit une entrée
+    par round joué, et ``re_buys`` compte les renflouements de la banque au
+    lancement d'une session (:func:`appliquer_recave`).
     """
 
     bankroll: float = SOLDE_INITIAL
@@ -89,6 +94,31 @@ def charger_profil(chemin: Path) -> Profil:
         history=list(donnees.get("history", [])),
         schema_version=int(donnees.get("schema_version", SCHEMA_VERSION)),
     )
+
+
+def appliquer_recave(profil: Profil) -> float | None:
+    """Renfloue le joueur si sa bankroll est trop basse **au lancement** d'une
+    session.
+
+    Si ``bankroll < SEUIL_RECAVE``, remet ``bankroll`` à ``SOLDE_INITIAL``,
+    incrémente ``re_buys`` et renvoie le montant injecté par la banque (le
+    delta). Sinon renvoie ``None`` et ne touche à rien.
+
+    Le re-buy n'a lieu qu'au lancement, jamais en cours de partie : tomber à
+    court pendant une session met fin à cette session, et l'appelant n'invoque
+    cette fonction qu'une fois, avant la boucle de jeu (ADR-0002).
+
+    Ne persiste pas par elle-même : l'appelant écrit le profil via
+    :func:`sauvegarder`. Le re-buy est de l'argent de la banque injecté hors
+    jeu ; il est compté par ``re_buys`` seul et n'apparaît jamais dans
+    ``history`` ni dans le net à vie.
+    """
+    if profil.bankroll >= SEUIL_RECAVE:
+        return None
+    montant = round(SOLDE_INITIAL - profil.bankroll, 2)
+    profil.bankroll = SOLDE_INITIAL
+    profil.re_buys += 1
+    return montant
 
 
 def enregistrer_manche(

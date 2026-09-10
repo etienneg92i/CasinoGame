@@ -28,6 +28,7 @@ import sys
 
 from profil import (
     Profil,
+    appliquer_recave,
     charger_profil,
     enregistrer_manche,
     resoudre_chemin,
@@ -334,6 +335,26 @@ def boucle_jeu(exposant: float) -> None:
 
     chemin_profil = resoudre_chemin()
     profil = charger_profil(chemin_profil)
+
+    recave = appliquer_recave(profil)
+    if recave is not None:
+        # Persisté tout de suite : un joueur renfloué qui quitte sans jouer ne
+        # doit pas être renfloué (ni recompté) au lancement suivant.
+        sauvegarder(profil, chemin_profil)
+        print(
+            texte_couleur(
+                f"\n  Bankroll : {profil.bankroll:.2f} €", 120, 220, 120
+            )
+        )
+        print(
+            texte_couleur(
+                f"  Re-buy : +{recave:.2f} € — la banque vous a renfloué",
+                230,
+                200,
+                120,
+            )
+        )
+
     bankroll_depart = profil.bankroll
     manche = 0
     try:

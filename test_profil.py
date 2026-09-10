@@ -1,7 +1,8 @@
 """Tests du profil persistant.
 
-Couvre le ticket #2 (bankroll conservée entre sessions) et le ticket #3
-(historique des rounds en ajout seul).
+Couvre le ticket #2 (bankroll conservée entre sessions), le ticket #3
+(historique des rounds en ajout seul) et le ticket #4 (re-buy au lancement
+d'une session basse).
 
 Framework : ``unittest`` de la bibliothèque standard — le projet ne dépend
 d'aucune bibliothèque tierce (spec, issue #1, « Testing Decisions »).
@@ -225,6 +226,80 @@ class EnregistrerMancheTest(unittest.TestCase):
             tzinfo=timezone.utc
         )
         self.assertEqual(lu.tzinfo, timezone.utc)
+
+
+class AppliquerRecaveTest(unittest.TestCase):
+    """Ticket #4 — au lancement d'une session, une bankroll sous le seuil est
+    renflouée à SOLDE_INITIAL et ``re_buys`` est incrémenté ; au-dessus du seuil
+    rien ne bouge. La fonction ne persiste pas par elle-même."""
+
+    def test_sous_le_seuil_renfloue_et_renvoie_le_montant_injecte(self):
+        p = profil.Profil(bankroll=3.33, re_buys=1)
+
+        montant = profil.appliquer_recave(p)
+
+        self.assertEqual(montant, round(profil.SOLDE_INITIAL - 3.33, 2))
+        self.assertEqual(p.bankroll, profil.SOLDE_INITIAL)
+        self.assertEqual(p.re_buys, 2)
+
+    def test_bankroll_a_zero_est_renflouee(self):
+        p = profil.Profil(bankroll=0.0)
+
+        montant = profil.appliquer_recave(p)
+
+        self.assertEqual(montant, profil.SOLDE_INITIAL)
+        self.assertEqual(p.bankroll, profil.SOLDE_INITIAL)
+        self.assertEqual(p.re_buys, 1)
+
+    def test_pile_au_seuil_ne_declenche_pas_de_recave(self):
+        p = profil.Profil(bankroll=profil.SEUIL_RECAVE, re_buys=4)
+
+        montant = profil.appliquer_recave(p)
+
+        self.assertIsNone(montant)
+        self.assertEqual(p.bankroll, profil.SEUIL_RECAVE)
+        self.assertEqual(p.re_buys, 4)
+
+    def test_au_dessus_du_seuil_ne_touche_a_rien(self):
+        p = profil.Profil(bankroll=742.5, re_buys=2, history=[{"net": 1.0}])
+
+        montant = profil.appliquer_recave(p)
+
+        self.assertIsNone(montant)
+        self.assertEqual(p.bankroll, 742.5)
+        self.assertEqual(p.re_buys, 2)
+        self.assertEqual(p.history, [{"net": 1.0}])
+
+    def test_la_recave_n_ajoute_aucune_entree_a_l_historique(self):
+        p = profil.Profil(bankroll=1.0, history=[{"net": -5.0}])
+
+        profil.appliquer_recave(p)
+
+        self.assertEqual(p.history, [{"net": -5.0}])
+
+    def test_ne_persiste_pas_par_elle_meme(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        chemin = Path(tmp.name) / "profil.json"
+
+        profil.appliquer_recave(profil.Profil(bankroll=2.0))
+
+        self.assertFalse(chemin.exists())
+
+    def test_re_buys_persiste_via_sauvegarder_et_survit_a_un_redemarrage(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        chemin = Path(tmp.name) / "profil.json"
+
+        session1 = profil.charger_profil(chemin)
+        session1.bankroll = 4.0
+        profil.appliquer_recave(session1)
+        profil.sauvegarder(session1, chemin)
+
+        session2 = profil.charger_profil(chemin)
+
+        self.assertEqual(session2.re_buys, 1)
+        self.assertEqual(session2.bankroll, profil.SOLDE_INITIAL)
 
 
 class HistoriquePersisteTest(unittest.TestCase):
